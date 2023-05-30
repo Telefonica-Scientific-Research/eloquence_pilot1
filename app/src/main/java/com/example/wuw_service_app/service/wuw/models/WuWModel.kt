@@ -16,26 +16,23 @@ class WuWModel(override val modelPath: String): AudioModelInterface {
     override val nConsecutiveWindows = 1
     override val classesArray = arrayOf("WUW", "NoWUW")
     override val defaultClass = "NoWUW"
-
     private val postProcessor =
         ArgmaxPostProcessor(nConsecutiveWindows, classesArray, defaultClass, 0.90f)
 
-    // Specific to this model
-    private var h: Tensor = getZeroesTensor(200)
+    // RNN: unused memory
+    private val memory = IValue.from(getZeroesTensor(200))
 
     override fun forward(input: FloatArray): String {
         val x = IValue.from(Tensor.fromBlob(input, longArrayOf(1, 24000)))
-        val memory = IValue.from(h)
-        val before = SystemClock.elapsedRealtime()
         val outputTuple = module!!.forward(x, memory).toTuple()
-        val forwardTime = SystemClock.elapsedRealtime() - before
-        h = outputTuple[1].toTensor()
         val scores = outputTuple[0].toTensor().dataAsFloatArray
         return postProcessor.processScores(scores)
     }
 
     override fun onDetect() {
         TODO("Not yet implemented")
+        // cloud verification
+        // trigger wuw detection flag
     }
 
     private fun getZeroesTensor(size: Int): Tensor {
@@ -50,4 +47,11 @@ class WuWModel(override val modelPath: String): AudioModelInterface {
         }
         return zeroes
     }
+}
+
+
+enum class WuWStatus{
+    MODEL_LOAD_OK,
+    MODEL_LOAD_ERROR,
+    RECOGNITION_SUCCESS
 }

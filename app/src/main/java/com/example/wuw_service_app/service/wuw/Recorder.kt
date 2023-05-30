@@ -6,7 +6,6 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Process
 import android.util.Log
-import prototypes.pep.mw_mh.Constants
 
 import kotlin.math.max
 
@@ -45,18 +44,19 @@ class Recorder() {
         recordingThread = null
     }
 
-    @SuppressLint("MissingPermission") // Why is this needed?
+    // Make sure that the app has recording permission
+    @SuppressLint("MissingPermission")
     private fun record() {
         Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
 
         // Estimate the buffer size we'll need for this device.
         var bufferSize = AudioRecord.getMinBufferSize(
-            Constants.SAMPLE_RATE,
-            Constants.CHANNELS,
+            AudioConstants.SAMPLE_RATE,
+            AudioConstants.CHANNELS,
             AudioFormat.ENCODING_PCM_16BIT
         )
         if (bufferSize == AudioRecord.ERROR || bufferSize == AudioRecord.ERROR_BAD_VALUE) {
-            bufferSize = Constants.SAMPLE_RATE * 2
+            bufferSize = AudioConstants.SAMPLE_RATE * 2
         }
         val audioBuffer = ShortArray(bufferSize / 2)
 
@@ -64,8 +64,8 @@ class Recorder() {
 
         val record = AudioRecord(
             MediaRecorder.AudioSource.DEFAULT,
-            Constants.SAMPLE_RATE,
-            Constants.CHANNELS,
+            AudioConstants.SAMPLE_RATE,
+            AudioConstants.CHANNELS,
             AudioFormat.ENCODING_PCM_16BIT,
             bufferSize
         )

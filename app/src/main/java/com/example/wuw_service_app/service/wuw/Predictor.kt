@@ -1,25 +1,22 @@
 package com.example.wuw_service_app.service.wuw
 
 import android.util.Log
-import com.example.wuw_service_app.service.wuw.models.WuWModel
-import com.example.wuw_service_app.service.wuw.models.AudioModelInterface
+import com.example.wuw_service_app.service.wuw.models.AudioModelsPipe
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.abs
 
-class Predictor(audioModelFactory: WuWModel, modelLabel: String) {
+class Predictor(private val audioModelsPipe: AudioModelsPipe) {
 
-    private var logTag: String = "Predictor$modelLabel"
+    private var logTag: String = "Inference"
     private var shouldContinuePredicting = false
     private var predictingThread: Thread? = null
-    private var audioModel: AudioModelInterface? = null
 
     private val _predictorResponse = MutableStateFlow(PredictorResponse("", 0.0f))
     val predictorResponse: StateFlow<PredictorResponse> = _predictorResponse
 
     init {
-        audioModel = audioModelFactory.getModel(modelLabel)
-        audioModel?.loadModel()
+        audioModelsPipe.loadModels()
     }
 
     // Recognizing stuff
@@ -43,14 +40,14 @@ class Predictor(audioModelFactory: WuWModel, modelLabel: String) {
     }
 
     private fun predict() {
-        if (audioModel == null) {
+        if (audioModelsPipe == null) {
             Log.d(logTag, "Model not loaded")
             return
         }
         val inputBuffer = ShortArray(AudioBuffer.recordingLength)
 
         // First time: wait until having a complete window
-        Thread.sleep((audioModel!!.windowSize.times(1000)).toLong())
+        Thread.sleep((AudioConstants.WINDOW_SIZE.times(1000)).toLong())
 
         while (shouldContinuePredicting) {
 
@@ -81,17 +78,17 @@ class Predictor(audioModelFactory: WuWModel, modelLabel: String) {
                 modelInput[i] = (inputBuffer[i].toFloat() / peakValue)
             }
 
-
-            val result = audioModel?.forward(modelInput)
+            /*
+            val result = audioModelsPipe?.forward(modelInput)
             if (result != null) {
                 if (result.label != audioModel?.defaultClass) {
                     _predictorResponse.value = PredictorResponse(result.label, result.scores.max())
                 }
-            }
+            }*/
 
-
+            TODO("somehow reduce the time to sleep depending on the forwards")
             // Sleep until having a new valid audio chunk
-            audioModel?.let { Thread.sleep(it.timeBetweenPredictionsMs) }
+            Thread.sleep(250)
         }
     }
 
