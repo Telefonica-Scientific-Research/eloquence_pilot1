@@ -1,9 +1,11 @@
 package com.example.wuw_service_app.service.wuw.models
 
+import android.util.Log
 import com.example.wuw_service_app.service.wuw.postprocessor.ArgmaxPostProcessor
 import org.pytorch.IValue
 import org.pytorch.Module
 import org.pytorch.Tensor
+import kotlin.math.log
 
 
 class WuWModel(override val modelPath: String): AudioModelInterface {
@@ -22,15 +24,18 @@ class WuWModel(override val modelPath: String): AudioModelInterface {
     // RNN: unused memory
     private val memory = IValue.from(getZeroesTensor(200))
 
-    override fun forward(input: FloatArray): String {
+    override fun forward(input: FloatArray) {
         val x = IValue.from(Tensor.fromBlob(input, longArrayOf(1, 24000)))
         val outputTuple = module!!.forward(x, memory).toTuple()
         val scores = outputTuple[0].toTensor().dataAsFloatArray
-        return postProcessor.processScores(scores)
+        val label = postProcessor.processScores(scores)
+        if (label == "WUW"){
+            onDetect()
+        }
     }
 
     override fun onDetect() {
-        TODO("Not yet implemented")
+        Log.d(logTag, "Wake-up word detected")
         // cloud verification
         // trigger wuw detection flag
     }
@@ -47,11 +52,4 @@ class WuWModel(override val modelPath: String): AudioModelInterface {
         }
         return zeroes
     }
-}
-
-
-enum class WuWStatus{
-    MODEL_LOAD_OK,
-    MODEL_LOAD_ERROR,
-    RECOGNITION_SUCCESS
 }

@@ -8,7 +8,7 @@ import kotlin.math.abs
 
 class Predictor(private val audioModelsPipe: AudioModelsPipe) {
 
-    private var logTag: String = "Inference"
+    private var logTag: String = "Inference thread"
     private var shouldContinuePredicting = false
     private var predictingThread: Thread? = null
 
@@ -50,25 +50,10 @@ class Predictor(private val audioModelsPipe: AudioModelsPipe) {
         Thread.sleep((AudioConstants.WINDOW_SIZE.times(1000)).toLong())
 
         while (shouldContinuePredicting) {
-
-            AudioBuffer.recordingBufferLock.lock()
             try {
-                val maxLength = AudioBuffer.recordingBuffer.size
-                val firstCopyLength = maxLength - AudioBuffer.recordingOffset
-                val secondCopyLength = AudioBuffer.recordingOffset
-                System.arraycopy(
-                    AudioBuffer.recordingBuffer,
-                    AudioBuffer.recordingOffset, inputBuffer, 0, firstCopyLength
-                )
-                System.arraycopy(
-                    AudioBuffer.recordingBuffer,
-                    0,
-                    inputBuffer,
-                    firstCopyLength,
-                    secondCopyLength
-                )
-            } finally {
-                AudioBuffer.recordingBufferLock.unlock()
+                AudioBuffer.read(inputBuffer)
+            } catch (e: Error) {
+                Log.e(logTag, "error record ${e.stackTrace}")
             }
 
             // Float conversion and normalization
@@ -78,6 +63,8 @@ class Predictor(private val audioModelsPipe: AudioModelsPipe) {
                 modelInput[i] = (inputBuffer[i].toFloat() / peakValue)
             }
 
+            audioModelsPipe?.forward(modelInput)
+
             /*
             val result = audioModelsPipe?.forward(modelInput)
             if (result != null) {
@@ -85,8 +72,8 @@ class Predictor(private val audioModelsPipe: AudioModelsPipe) {
                     _predictorResponse.value = PredictorResponse(result.label, result.scores.max())
                 }
             }*/
+            Log.d(logTag, "A forward should be performed")
 
-            TODO("somehow reduce the time to sleep depending on the forwards")
             // Sleep until having a new valid audio chunk
             Thread.sleep(250)
         }

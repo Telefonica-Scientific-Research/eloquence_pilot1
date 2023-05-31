@@ -25,7 +25,7 @@ interface AudioModelInterface {
         }
     }
 
-    fun forward(input: FloatArray): String
+    fun forward(input: FloatArray)
 
     fun onDetect()
 }

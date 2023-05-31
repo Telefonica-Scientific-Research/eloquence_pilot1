@@ -19,7 +19,7 @@ class Recorder() {
     private var recordingThread: Thread? = null
 
     init {
-        initRecordingBuffer()
+        AudioBuffer.initAudioBuffer()
     }
 
     // Recording and Playback Methods
@@ -36,7 +36,7 @@ class Recorder() {
 
     @Synchronized
     fun stopRecording() {
-        Log.v(logTag, "Stop recording")
+        Log.d(logTag, "Stop recording")
         if (recordingThread == null) {
             return
         }
@@ -76,52 +76,24 @@ class Recorder() {
         }
         try {
             record.startRecording()
-            Log.v(logTag, "Start recording")
+            Log.d(logTag, "Start recording")
         } catch (e: Error) {
-            Log.e(logTag, "Error record ${e.stackTrace}")
+            Log.e(logTag, "Error starting recorder thread ${e.stackTrace}")
         }
 
         // Loop, gathering audio data and copying it to a round-robin buffer.
         while (shouldContinueRecording) {
             val numberRead = record.read(audioBuffer, 0, audioBuffer.size)
-            val maxLength = AudioBuffer.recordingBuffer.size
-            val newRecordingOffset = AudioBuffer.recordingOffset + numberRead
-            val secondCopyLength = max(0, newRecordingOffset - maxLength)
-            val firstCopyLength = numberRead - secondCopyLength
-            // We store off all the data for the recognition thread to access. The ML
-            // thread will copy out of this buffer into its own, while holding the
-            // lock, so this should be thread safe.
-            AudioBuffer.recordingBufferLock.lock()
             try {
-                System.arraycopy(
-                    audioBuffer, 0,
-                    AudioBuffer.recordingBuffer,
-                    AudioBuffer.recordingOffset, firstCopyLength
-                )
-                System.arraycopy(
-                    audioBuffer, firstCopyLength,
-                    AudioBuffer.recordingBuffer, 0, secondCopyLength
-                )
-                AudioBuffer.recordingOffset = newRecordingOffset % maxLength
-
+                AudioBuffer.write(audioBuffer, numberRead)
             } catch (e: Error) {
                 Log.e(logTag, "error record ${e.stackTrace}")
-                initRecordingBuffer()
-            } finally {
-                AudioBuffer.recordingBufferLock.unlock()
+                AudioBuffer.initAudioBuffer()
             }
         }
-        Log.v(logTag, "Recording finished.")
+
+        Log.d(logTag, "Recording finished.")
         record.stop()
         record.release()
-    }
-
-    /**
-     * Initialize the recording buffer to zeroes
-     */
-    private fun initRecordingBuffer() {
-        for (i in 0 until AudioBuffer.recordingLength) {
-            AudioBuffer.recordingBuffer[i] = 0
-        }
     }
 }
