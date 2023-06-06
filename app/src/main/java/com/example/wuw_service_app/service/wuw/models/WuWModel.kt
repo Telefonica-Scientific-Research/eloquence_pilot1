@@ -1,6 +1,7 @@
 package com.example.wuw_service_app.service.wuw.models
 
 import android.util.Log
+import com.example.wuw_service_app.service.wuw.AudioBuffer
 import com.example.wuw_service_app.service.wuw.postprocessor.ArgmaxPostProcessor
 import org.pytorch.IValue
 import org.pytorch.Module
@@ -24,18 +25,20 @@ class WuWModel(override val modelPath: String): AudioModelInterface {
     // RNN: unused memory
     private val memory = IValue.from(getZeroesTensor(200))
 
-    override fun forward(input: FloatArray) {
+    override fun forward(input: FloatArray, callback: AudioModelsCallback) {
         val x = IValue.from(Tensor.fromBlob(input, longArrayOf(1, 24000)))
         val outputTuple = module!!.forward(x, memory).toTuple()
         val scores = outputTuple[0].toTensor().dataAsFloatArray
         val label = postProcessor.processScores(scores)
         if (label == "WUW"){
             onDetect()
+            callback
         }
     }
 
     override fun onDetect() {
         Log.d(logTag, "Wake-up word detected")
+        AudioBuffer.initAudioBuffer()
         // cloud verification
         // trigger wuw detection flag
     }

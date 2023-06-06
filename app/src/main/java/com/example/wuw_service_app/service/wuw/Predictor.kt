@@ -16,7 +16,13 @@ class Predictor(private val audioModelsPipe: AudioModelsPipe) {
     val predictorResponse: StateFlow<PredictorResponse> = _predictorResponse
 
     init {
-        audioModelsPipe.loadModels()
+        try {
+            audioModelsPipe.loadModels()
+        }
+        catch (e: Error) {
+            Log.e(logTag, "Error loading models ${e.stackTrace}")
+        }
+
     }
 
     // Recognizing stuff
@@ -65,17 +71,8 @@ class Predictor(private val audioModelsPipe: AudioModelsPipe) {
 
             audioModelsPipe?.forward(modelInput)
 
-            /*
-            val result = audioModelsPipe?.forward(modelInput)
-            if (result != null) {
-                if (result.label != audioModel?.defaultClass) {
-                    _predictorResponse.value = PredictorResponse(result.label, result.scores.max())
-                }
-            }*/
-            Log.d(logTag, "A forward should be performed")
-
             // Sleep until having a new valid audio chunk
-            Thread.sleep(250)
+            Thread.sleep(223)
         }
     }
 

@@ -2,7 +2,6 @@ package com.example.wuw_service_app
 
 import android.Manifest
 import android.app.AlertDialog
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -52,7 +51,8 @@ class MainActivity : ComponentActivity() {
 
     private fun startAudioService(){
         val serviceIntent = Intent(this@MainActivity, AudioService::class.java)
-        startService(serviceIntent)
+        //startService(serviceIntent)
+        startForegroundService(serviceIntent)
     }
 
     private fun checkRecordAudioPermission() {

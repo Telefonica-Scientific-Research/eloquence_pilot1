@@ -25,7 +25,7 @@ interface AudioModelInterface {
         }
     }
 
-    fun forward(input: FloatArray)
+    fun forward(input: FloatArray, callback: AudioModelsCallback)
 
     fun onDetect()
 }
