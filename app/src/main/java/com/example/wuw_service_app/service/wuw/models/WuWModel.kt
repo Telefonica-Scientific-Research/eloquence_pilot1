@@ -2,11 +2,15 @@ package com.example.wuw_service_app.service.wuw.models
 
 import android.util.Log
 import com.example.wuw_service_app.service.wuw.AudioBuffer
+import com.example.wuw_service_app.service.wuw.AudioConstants
 import com.example.wuw_service_app.service.wuw.postprocessor.ArgmaxPostProcessor
 import org.pytorch.IValue
 import org.pytorch.Module
 import org.pytorch.Tensor
-import kotlin.math.log
+
+import android.os.Environment
+import java.io.File
+import com.example.wuw_service_app.service.wuw.WavFileWriter
 
 
 class WuWModel(override val modelPath: String): AudioModelInterface {
@@ -32,12 +36,13 @@ class WuWModel(override val modelPath: String): AudioModelInterface {
         val label = postProcessor.processScores(scores)
         if (label == "WUW"){
             onDetect()
-            callback
+            callback.invoke(0) // el invoke l'he posat jo!
         }
     }
 
     override fun onDetect() {
         Log.d(logTag, "Wake-up word detected")
+        AudioBuffer
         AudioBuffer.initAudioBuffer()
         // cloud verification
         // trigger wuw detection flag
