@@ -45,6 +45,7 @@ class ConversationRecorder {
      * Starts the background recording thread.
      * Redundancy fix: Configuration values are now read directly from EloquenceAPI at save-time.
      */
+    @RequiresPermission(Manifest.permission.RECORD_AUDIO)
     @Synchronized // only one thread at a time can call this to avoid starting multiple recorders.
     fun startRecording(
         context: Context, 
@@ -69,7 +70,14 @@ class ConversationRecorder {
         recordedData.clear()
 
         // This creates a background thread to run your record() function, giving that thread a descriptive name.
-        recordingThread = Thread { record() }.apply { name = "ConversationRecorderThread" }
+        recordingThread = Thread {
+            try {
+                record()
+            } catch (e: SecurityException) {
+                Log.e(logTag, "[Recording Flow] SecurityException: Permission not granted or revoked: ${e.message}")
+                shouldContinueRecording = false
+            }
+        }.apply { name = "ConversationRecorderThread" }
         // This starts (runs) the thread.
         recordingThread!!.start() // !! is the non-null assertion.
     }
@@ -156,7 +164,7 @@ class ConversationRecorder {
                 MediaRecorder.AudioSource.MIC,        // Use the phone's microphone.
                 sampleRate,                           // The frequency (samples/sec).
                 AudioConstants.CHANNELS,              // Mono or Stereo.
-                AudioFormat.ENCODING_PCM_16BIT,       // Bit depth (2 bytes per sample).
+                AudioFormat.ENCODING_PCM_16BIT,
                 bufferSize                            // Internal system buffer size.
             )
         }

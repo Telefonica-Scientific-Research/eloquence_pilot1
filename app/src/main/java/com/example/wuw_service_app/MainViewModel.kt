@@ -62,32 +62,43 @@ class MainViewModel : ViewModel() {
         showNamingDialog.value = false
     }
 
+// In MainViewModel.kt
+
     fun actualStartRecording(context: Context, indexName: String, durationSeconds: Int) {
+        // 1. Hide the dialog immediately
         showNamingDialog.value = false
+
+        // 2. Update local UI state
         recordingIndexName = indexName
         chunkDurationSeconds = durationSeconds
         currentChunkCounter = 0
         isConversationRecording.value = true
-        
+
+        // 3. Update the selected context in UI and Service
         selectIndex(context, indexName)
-        
         updateStatus("Starting recording: $indexName")
-        
-        conversationRecorder.startRecording(
-            context = context, 
-            indexName = indexName, 
-            durationSeconds = durationSeconds,
-            /// chunkSize = chunkSize.value.toIntOrNull() ?: 500,
-            /// embedName = embedName.value,
-            /// splittingStrategy = splittingStrategy.value,
-            /// percentile = percentile.value.toDoubleOrNull() ?: 0.9
-        )
+
+        // 4. Trigger the Service to start the background recording
+        val intent = Intent(context, AudioService::class.java).apply {
+            action = "ACTION_START_CONVERSATION"
+            putExtra("INDEX_NAME", indexName)
+            putExtra("DURATION", durationSeconds)
+        }
+        context.startForegroundService(intent)
     }
 
     fun stopConversationRecording(context: Context) {
+        // 1. Update UI state
         isConversationRecording.value = false
-        conversationRecorder.stopRecording(context)
         updateStatus("Recording stopped.")
+
+        // 2. Trigger the Service to stop
+        val intent = Intent(context, AudioService::class.java).apply {
+            action = "ACTION_STOP_CONVERSATION"
+        }
+        context.startForegroundService(intent)
+
+        // 3. Refresh the list of recordings
         fetchAndShowIndices()
     }
 

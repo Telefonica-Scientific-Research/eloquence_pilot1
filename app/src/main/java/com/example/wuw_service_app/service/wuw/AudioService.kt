@@ -250,10 +250,14 @@ class AudioService : Service() {
      * This handles the actual start of the listening process and updates settings from the UI.
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(logTag, "AudioService onStartCommand: Handling updates from UI")
+        Log.d(logTag, "AudioService onStartCommand: action=${intent?.action}")
 
-        // Update the global configuration singleton with values passed from the UI
-        // intent?.let { --> 1) intent = data passed to this Activity (or component), 2) ?. = “only continue if not null”, 3) let { ... } = run this block with intent as it
+        // 1. REQUIRED: Start Foreground immediately to prevent the service from being killed
+        createNotificationChannel()
+        val notification = getNotification("Listening...", "Wake word & Recording active")
+        startForeground(1234, notification)
+
+        // 2. Handle configuration updates from the UI (passed via Intent)
         intent?.let {
             it.getStringExtra("SELECTED_INDEX")?.let { idx -> EloquenceAPI.currentIndexName = idx }
             EloquenceAPI.currentLlmName = it.getStringExtra("LLM_NAME") ?: EloquenceAPI.currentLlmName
@@ -264,18 +268,36 @@ class AudioService : Service() {
             EloquenceAPI.currentLanguage = it.getStringExtra("LANGUAGE") ?: EloquenceAPI.currentLanguage
         }
 
-        // Setup and start the persistent foreground notification
-        createNotificationChannel()
-        val notification = getNotification("Wake word", "Service running")
-        startForeground(1234, notification)
+        // 3. Handle Actions
+        val action = intent?.action
+        val hasPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
-        conversationRecorder.stopRecording(this)
-        // Kick off the recording and AI prediction threads
-        recorder.startRecording()
-        predictor.startPredicting()
+        when (action) {
+            "ACTION_START_CONVERSATION" -> {
+                val indexName = intent.getStringExtra("INDEX_NAME") ?: "default"
+                val duration = intent.getIntExtra("DURATION", 10)
+
+                if (hasPermission) {
+                    conversationRecorder.startRecording(this, indexName, duration)
+                } else {
+                    Log.e(logTag, "Permission missing for ConversationRecorder")
+                }
+            }
+            "ACTION_STOP_CONVERSATION" -> {
+                conversationRecorder.stopRecording(this)
+            }
+            else -> {
+                // Default behavior (Initial start): Wake Word detection
+                if (hasPermission) {
+                    recorder.startRecording()
+                    predictor.startPredicting()
+                }
+            }
+        }
 
         return START_STICKY
     }
+
 
 
     /**
