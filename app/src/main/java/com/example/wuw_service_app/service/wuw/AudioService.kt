@@ -188,7 +188,7 @@ class AudioService : Service() {
             sendStatusUpdate("Thinking...")
 
             // 2. Call Eloquence endpoint to transcribe the query
-            EloquenceAPI.transcribeQueryWithWhisper(this@AudioService, audioBytes) { transcription ->
+            EloquenceAPI.transcribeQueryWithWhisper(this@AudioService, audioBytes, language = EloquenceAPI.currentLanguage) { transcription ->
                 if (!transcription.isNullOrEmpty()) {
                     Log.d(logTag, "[WakeWord] Transcription: '$transcription'. Context Index: ${EloquenceAPI.currentIndexName}")
                     

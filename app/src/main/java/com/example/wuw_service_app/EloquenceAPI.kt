@@ -164,7 +164,7 @@ object EloquenceAPI {
             put("max_tokens", maxTokens)
             put("index_name", conversation) // Which knowledge base index to search
             put("retriever_address", address)
-            put("system_prompt", "Te llamas Aura, un asistente virtual empático. Responde en español de forma breve y natural.")
+            put("system_prompt", "Your name is Aura, an empathetic virtual assistant. Respond briefly and naturally in the same language as the question.")
         }
 
         Log.d(TAG, "[Wake Word Flow] Requesting RAG: $bodyData")
