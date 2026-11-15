@@ -10,8 +10,9 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
 
-    <!-- ✅ Required for ForegroundService to use microphone on Android 10+ -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:ignore="NewApi" />
+    <!-- ✅ Required for ForegroundService on Android 14+ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:allowBackup="true"

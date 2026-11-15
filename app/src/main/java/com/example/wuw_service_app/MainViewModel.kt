@@ -15,6 +15,9 @@ import android.util.Log
 class MainViewModel : ViewModel() {
     private val _statusMessage = mutableStateOf("")
     val statusMessage: State<String> = _statusMessage
+
+    private val _audioLevel = mutableStateOf(0f)
+    val audioLevel: State<Float> = _audioLevel
     
     var isConversationRecording = mutableStateOf(false)
         private set
@@ -36,11 +39,14 @@ class MainViewModel : ViewModel() {
 
     var currentChunkCounter = 0
     var recordingIndexName = ""
-    var chunkDurationSeconds = 10
+    var chunkDurationSeconds = 30
 
     // Configuration States - LLM & RAG
-    var llmName = mutableStateOf("Gemma 4 (TID)")
-    var docsK = mutableStateOf("5")
+    var baseIP = mutableStateOf("https://eloquence.lt.bsc.es")
+    var llmName = mutableStateOf("Gemma 4 31B")
+    var transcriberName = mutableStateOf("Whisper")
+    var querySilenceSeconds = mutableStateOf("2.0")
+    var docsK = mutableStateOf("10")
     var temperature = mutableStateOf("0.7")
     var topP = mutableStateOf("0.9")
     var maxTokens = mutableStateOf("1000") 
@@ -54,12 +60,110 @@ class MainViewModel : ViewModel() {
     
     var showConfigDialog = mutableStateOf(false)
 
+    private val _ragDocuments = mutableStateOf<List<String>>(emptyList())
+    val ragDocuments: State<List<String>> = _ragDocuments
+    private val _ragDocumentTitles = mutableStateOf<List<String>>(emptyList())
+    val ragDocumentTitles: State<List<String>> = _ragDocumentTitles
+    private val _ragAnswerForDialog = mutableStateOf("")
+    val ragAnswerForDialog: State<String> = _ragAnswerForDialog
+    var showRagDocumentsDialog = mutableStateOf(false)
+
+    fun showLlmResponseWithDocuments(
+        answer: String,
+        documents: List<String>,
+        documentTitles: List<String>,
+        durationMillis: Long
+    ) {
+        _ragAnswerForDialog.value = answer
+        _ragDocuments.value = documents
+
+        _ragDocumentTitles.value = if (documentTitles.size == documents.size) {
+            documentTitles
+        } else {
+            documents.indices.map { "Snippet ${it + 1}" }
+        }
+
+        // Keep the answer temporary, as before
+        updateStatus(answer, durationMillis = durationMillis)
+    }
+
+    fun shouldShowRagSnippetsButton(currentStatus: String): Boolean {
+        return currentStatus.isNotBlank() &&
+                currentStatus == _ragAnswerForDialog.value &&
+                _ragDocuments.value.isNotEmpty()
+    }
+
+    fun openRagDocumentsDialogFromCurrentAnswer() {
+        if (_ragAnswerForDialog.value.isBlank()) return
+
+        // Stop the temporary answer from continuing behind the dialog
+        statusJob?.cancel()
+        _statusMessage.value = ""
+        messageQueue.clear()
+        isShowingMessage = false
+
+        showRagDocumentsDialog.value = true
+    }
+
+    fun closeRagDocumentsDialogAndClear() {
+        showRagDocumentsDialog.value = false
+        _ragAnswerForDialog.value = ""
+        _ragDocuments.value = emptyList()
+        _ragDocumentTitles.value = emptyList()
+
+        statusJob?.cancel()
+        _statusMessage.value = ""
+        messageQueue.clear()
+        isShowingMessage = false
+    }
+
+    fun dismissStatusAndClearRagIfNeeded() {
+        val currentStatus = _statusMessage.value
+        val wasCurrentRagAnswer = currentStatus == _ragAnswerForDialog.value
+
+        dismissStatus()
+
+        if (wasCurrentRagAnswer) {
+            _ragAnswerForDialog.value = ""
+            _ragDocuments.value = emptyList()
+            _ragDocumentTitles.value = emptyList()
+            showRagDocumentsDialog.value = false
+        }
+    }
+
     fun startConversationRecording() {
         showNamingDialog.value = true
     }
 
     fun dismissNamingDialog() {
         showNamingDialog.value = false
+    }
+
+    fun openRagDocumentsDialog() {
+        showRagDocumentsDialog.value = true
+    }
+
+    fun closeRagDocumentsDialog() {
+        showRagDocumentsDialog.value = false
+    }
+
+    fun clearRagDocuments() {
+        _ragDocuments.value = emptyList()
+        _ragDocumentTitles.value = emptyList()
+        showRagDocumentsDialog.value = false
+    }
+
+    fun updateAudioLevel(level: Float, source: String = "unknown") {
+        val cleanLevel = level.coerceIn(0f, 1f)
+
+        // Important:
+        // After pressing Stop Conversation, ignore late non-zero audio-level broadcasts
+        // from ConversationRecorder. Otherwise the waveform can freeze at the last value.
+        if (source == "conversation" && !isConversationRecording.value && cleanLevel > 0f) {
+            return
+        }
+
+        _audioLevel.value = cleanLevel
     }
 
 // In MainViewModel.kt
@@ -88,8 +192,9 @@ class MainViewModel : ViewModel() {
     }
 
     fun stopConversationRecording(context: Context) {
-        // 1. Update UI state
+        // 1. Update UI state immediately
         isConversationRecording.value = false
+        updateAudioLevel(0f, source = "conversation")
         updateStatus("Recording stopped.")
 
         // 2. Trigger the Service to stop
@@ -104,7 +209,7 @@ class MainViewModel : ViewModel() {
 
     fun deleteSelectedConversation(context: Context, indexName: String) {
         updateStatus("Deleting: $indexName")
-        EloquenceAPI.deleteConversation(context, indexName, "http://192.168.24.120:7997")
+        EloquenceAPI.deleteConversation(context, indexName,  EloquenceAPI.RETRIEVER_ADDRESS)
         viewModelScope.launch {
             delay(1500)
             fetchAndShowIndices()
@@ -113,6 +218,7 @@ class MainViewModel : ViewModel() {
 
     fun clearHistory() {
         EloquenceAPI.clearHistory()
+        closeRagDocumentsDialogAndClear()
         updateStatus("History cleared.")
     }
 
@@ -177,32 +283,63 @@ class MainViewModel : ViewModel() {
             updateStatus("Chunk $currentChunkCounter saved")
         }
     }
-
     fun updateConfigurationsInService(context: Context) {
-        // 1. Update LLM configurations in AudioService
+
+        val querySilenceSecondsValue =
+            querySilenceSeconds.value.toDoubleOrNull()
+                ?.takeIf { it > 0.0 }
+                ?: 2.0
+        querySilenceSeconds.value = querySilenceSecondsValue.toString()
+        val querySilenceDurationMs =
+            (querySilenceSecondsValue * 1000.0).toLong()
+
         val intent = Intent(context, AudioService::class.java)
+
+        intent.putExtra("BASE_IP", baseIP.value)
         intent.putExtra("LLM_NAME", llmName.value)
-        intent.putExtra("DOCS_K", docsK.value.toIntOrNull() ?: 5)
+        intent.putExtra("TRANSCRIBER_NAME", transcriberName.value)
+        intent.putExtra(
+            "QUERY_SILENCE_DURATION_MS",
+            querySilenceDurationMs
+        )
+
+        intent.putExtra("DOCS_K", docsK.value.toIntOrNull() ?: 10)
         intent.putExtra("TEMP", temperature.value.toDoubleOrNull() ?: 0.7)
         intent.putExtra("TOP_P", topP.value.toDoubleOrNull() ?: 0.9)
         intent.putExtra("MAX_TOKENS", maxTokens.value.toIntOrNull() ?: 1000)
         intent.putExtra("LANGUAGE", language.value)
+
         context.startForegroundService(intent)
 
-        // ✅ 2. Update Vector Store configurations in EloquenceAPI
-        EloquenceAPI.currentChunkSize = chunkSize.value.toIntOrNull() ?: 500
+        // Vector Store
+        EloquenceAPI.currentChunkSize =
+            chunkSize.value.toIntOrNull() ?: 500
+
         EloquenceAPI.currentEmbedName = embedName.value
         EloquenceAPI.currentSplittingStrategy = splittingStrategy.value
-        EloquenceAPI.currentPercentile = percentile.value.toDoubleOrNull() ?: 0.9
+        EloquenceAPI.currentPercentile =
+            percentile.value.toDoubleOrNull() ?: 0.9
 
-        // Update EloquenceAPI with LLM settings
+        // LLM / RAG
+        EloquenceAPI.currentBaseIP = baseIP.value
         EloquenceAPI.currentLlmName = llmName.value
-        EloquenceAPI.currentDocsK = docsK.value.toIntOrNull() ?: 5
+        EloquenceAPI.currentDocsK = docsK.value.toIntOrNull() ?: 10
         EloquenceAPI.currentTemp = temperature.value.toDoubleOrNull() ?: 0.7
         EloquenceAPI.currentTopP = topP.value.toDoubleOrNull() ?: 0.9
-        EloquenceAPI.currentMaxTokens = maxTokens.value.toIntOrNull() ?: 1000
+        EloquenceAPI.currentMaxTokens =
+            maxTokens.value.toIntOrNull() ?: 1000
         EloquenceAPI.currentLanguage = language.value
-        
-        Log.d("MainViewModel", "Configurations updated: VS(chunk=${EloquenceAPI.currentChunkSize}, embed=${EloquenceAPI.currentEmbedName})")
+
+        // Query transcription
+        EloquenceAPI.currentTranscriberName = transcriberName.value
+        EloquenceAPI.currentQuerySilenceDurationMs =
+            querySilenceDurationMs
+
+        Log.d(
+            "MainViewModel",
+            "Configurations updated: " +
+                    "transcriber=${EloquenceAPI.currentTranscriberName}, " +
+                    "querySilence=${EloquenceAPI.currentQuerySilenceDurationMs}ms"
+        )
+        }
     }
-}

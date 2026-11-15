@@ -29,6 +29,7 @@ class Recorder() {
         if (recordingThread != null) {
             return
         }
+
         shouldContinueRecording = true
         recordingThread = Thread { record() }
         recordingThread!!.start()
