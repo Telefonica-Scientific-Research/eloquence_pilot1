@@ -1,168 +1,151 @@
 # ELOQUENCE Pilot 1 Android App
 
-Pilot 1 is an Android wake-word and conversation-recording prototype for the ELOQUENCE WP5 pilot work. The app continuously runs a foreground microphone service, detects a local wake word model, records user speech, and sends audio or transcribed conversation chunks to the ELOQUENCE backend for transcription, RAG, and vector-store indexing.
+Android research prototype for ELOQUENCE Pilot 1: local wake-word detection, spoken questions, and conversation recording with backend transcription and retrieval-augmented answers.
 
-## Project Structure
+Wake-word detection and query endpointing run on the device. Transcription, diarization, vector-store ingestion, retrieval, and answer generation require a compatible ELOQUENCE backend, which is not included in this repository. Answers are displayed as text; this client does not implement text-to-speech playback.
 
-```text
-eloquence_pilot1/
-├── app/                  # Main Android application
-├── gradle/wrapper/       # Gradle wrapper files
-├── build.gradle          # Root Gradle configuration
-├── settings.gradle       # Module registration
-└── gradlew               # Linux/macOS Gradle wrapper
-```
+## Features
 
-Main app code lives under:
+- Foreground microphone service with a notification and local PyTorch Lite wake-word detection ("OK Aura").
+- Query endpointing using Silero VAD through ONNX Runtime, with configurable silence duration.
+- Query transcription using `Whisper` or `MEUSLI-SLAM-ASR`, selected in the UI.
+- Backend task `RAG_with_Wiki` when a conversation is selected, or `Wiki` when none is selected.
+- Retrieved-snippet viewer, including time labels when the backend supplies `start_time` metadata.
+- Named conversation recording, sequential WhisperX diarization and ingestion, and upload retries.
+- Conversation selection/deletion, in-memory dialogue history, and a live audio-level visualization.
 
-```text
-app/src/main/java/com/example/wuw_service_app/
-```
+## Repository layout
 
-Important classes:
+| Path | Purpose |
+| --- | --- |
+| `app/` | Android application, Jetpack Compose UI, audio service, and backend client |
+| `savr-library/` | Additional audio-recording library module; included in Gradle settings but not currently an app dependency |
+| `gradle/wrapper/` | Gradle wrapper |
+| `app/src/main/assets/` | Runtime model assets |
 
-- `MainActivity.kt`: Jetpack Compose UI and permission bootstrap.
-- `MainViewModel.kt`: UI state, configuration updates, and service commands.
-- `AudioService.kt`: foreground service for wake-word detection and short query recording.
-- `ConversationRecorder.kt`: long-form conversation chunk recording.
-- `EloquenceAPI.kt`: HTTP integration with transcription, RAG, ingestion, and vector-store management endpoints.
+Main application sources are under `app/src/main/java/com/example/wuw_service_app/`:
 
-## Main Features
+- `MainActivity.kt`: UI, runtime microphone permission, and broadcast receivers.
+- `MainViewModel.kt`: UI state, settings, and service commands.
+- `EloquenceAPI.kt`: HTTP requests, dialogue history, and backend response handling.
+- `ConversationRecorder.kt`: chunk capture, upload queue, retries, and final-chunk handling.
+- `service/wuw/AudioService.kt`: foreground service, wake-word pipeline, and short-query capture.
+- `service/wuw/vad/`: Silero inference, framing, and end-of-speech detection.
 
-- Local wake-word detection using the PyTorch Lite model in `app/src/main/assets/sgru.ptl`.
-- Foreground Android service for continuous microphone monitoring.
-- Short query flow:
-  - wake word is detected;
-  - the user query is recorded until silence;
-  - audio is sent to Whisper through the ELOQUENCE backend;
-  - the transcribed query is answered with RAG and shown in the app.
-- Conversation recording flow:
-  - user starts a named conversation from the UI;
-  - audio is split into fixed-duration chunks;
-  - chunks are transcribed with WhisperX diarization;
-  - transcriptions are ingested into a vector-store index.
-- UI controls for:
-  - selecting the active conversation context;
-  - deleting vector-store conversations;
-  - clearing local chat history;
-  - editing LLM, RAG, language, and vector-store parameters.
+## Build prerequisites
 
-## Requirements
+Use Android Studio, an Android SDK installation, and a JDK compatible with the checked-in Android Gradle Plugin and Gradle wrapper. Configure the Gradle JDK separately from the Java/Kotlin bytecode target; the app targets Java 8 bytecode while `savr-library` targets Java 17.
 
-- Android Studio with Android Gradle Plugin support.
-- JDK compatible with Java 8 bytecode used by the app module.
-- Android SDK 33.
-- Android device or emulator running API 26 or newer.
-- Microphone access on the target device.
-- Network access from the device to the configured ELOQUENCE backend.
+Checked-in configuration:
 
-The checked-in Gradle wrapper uses Gradle `8.13`.
+| Component | Value |
+| --- | --- |
+| Android Gradle Plugin | `8.13.2` |
+| Gradle wrapper | `9.3.1` |
+| Kotlin / Compose plugin | `2.0.21` |
+| App compile / target SDK | `33` / `33` |
+| App minimum SDK | `26` (Android 8.0) |
+| Library compile / minimum SDK | `34` / `24` |
 
-## Backend Configuration
+These values describe the source configuration, not a verified compatibility matrix. Validate Gradle sync and a clean build in your Android environment before publishing a release. Install SDK platforms 33 and 34 to build both included modules. Configure `sdk.dir` in an untracked `local.properties` file if needed.
 
-The app currently uses a hard-coded backend IP in `EloquenceAPI.kt`:
+## Required model assets
 
-```kotlin
-private const val BASE_IP = "192.168.24.120"
-```
-
-Derived endpoints:
-
-- `http://192.168.24.120:8082/query`
-- `http://192.168.24.120:8082/ingest`
-- `http://192.168.24.120:8082/delete_vs`
-- `http://192.168.24.120:8082/list_vs`
-- `http://192.168.24.120:7997` for the retriever/vector-store address
-
-Update `BASE_IP` before building if the backend is running on another host. The Android manifest enables cleartext HTTP traffic with `android:usesCleartextTraffic="true"`.
-
-## Wake-Word Model Weights
-
-The wake-word model weights are expected locally at:
+The active service loads these exact filenames:
 
 ```text
-app/src/main/assets/sgru.ptl
+app/src/main/assets/sgru-1.0.31.ptl
+app/src/main/assets/silero_vad.onnx
 ```
 
-This file is not included in the online repository because the model is proprietary to Telefonica. Developers who need to run the wake-word flow must obtain the model through the appropriate internal channel and place it at the path above before building the app.
+The supplied development snapshot also contains `sgru.ptl`, but the current service loads `sgru-1.0.31.ptl` instead.
 
-## Build
+The wake-word weights are proprietary to Telefónica according to the previous project documentation. Obtain them through the appropriate internal channel. The source-only distribution excludes both `.ptl` files; restore the active model locally before running the app. The `.gitignore` prevents their accidental addition. Check redistribution terms for other model assets before making a public release.
 
-From this directory:
+## Backend configuration
+
+Open **Configurations** and select the server. The current UI offers:
+
+- `https://eloquence.lt.bsc.es` (default)
+- `192.168.24.120` (local development)
+
+For a value beginning with `http`, the client appends endpoint paths directly. For a bare host/IP, it constructs `http://<host>:8082/<endpoint>`. Avoid a trailing slash. To add a different server to the UI, update `serverOptions` in `MainActivity.kt`; default values also exist in `MainViewModel.kt` and `EloquenceAPI.kt`.
+
+`RETRIEVER_ADDRESS` is currently the backend selector `public`, not a client connection to port 7997.
+
+| Endpoint | Method | Client use |
+| --- | --- | --- |
+| `/query` | POST | Query transcription, WhisperX diarization, and generated answers |
+| `/ingest` | POST | Transcribed text, speaker turns, and snippet metadata |
+| `/list_vs` | GET | Available conversation indices (`available` array) |
+| `/delete_vs` | DELETE | Delete a conversation index |
+
+The backend must support task names `Transcription`, `Diarization`, `RAG_with_Wiki`, and `Wiki`, as well as the configured model identifiers. Transcription/ingestion requests use multipart forms; answer requests use a form-encoded `body` JSON field. The client expects WhisperX `text` and `transcription_turns`, and ingestion confirmation `{"status":"success"}`. Answer responses may include `text`, `documents`, and `documents_metadata`.
+
+The manifest permits cleartext HTTP for the local development option. This client does not add an authorization header; backend authentication/access control must be considered separately.
+
+## Build and install
+
+From the project root on Linux/macOS:
 
 ```bash
-./gradlew assembleDebug
+chmod +x gradlew
+./gradlew :app:assembleDebug
+./gradlew :app:testDebugUnitTest
+./gradlew :app:installDebug
 ```
 
-To run unit tests:
+On Windows, use `gradlew.bat` instead of `./gradlew`. The debug APK is written to `app/build/outputs/apk/debug/app-debug.apk`. Alternatively, open `wuw-service-app` in Android Studio and run the `app` configuration.
 
-```bash
-./gradlew test
-```
+The existing tests are template tests; passing them does not validate microphone capture or backend integration.
 
-To install the debug APK on a connected device:
+## Usage
 
-```bash
-./gradlew installDebug
-```
+1. Launch the app and grant microphone permission. The foreground service starts automatically.
+2. Open **Configurations**, choose backend/model/language parameters, and save them.
+3. For a new conversation, choose **Record Conversation**, enter a name and chunk duration, then start. Use **Stop Conversation** to stop capture; final-chunk processing and queued uploads continue afterward.
+4. Wait until processing finishes before starting another conversation. Select the desired stored conversation for contextual answers.
+5. Say "OK Aura", then ask a question. Capture ends after the configured continuous silence; transcription and answer generation run on the backend.
+6. Inspect retrieved snippets when available. **Clear History** clears local dialogue memory and the current answer/snippet state; it does not delete stored indices. Use the conversation deletion control for that.
 
-You can also open `eloquence_pilot1` in Android Studio and run the `app` configuration.
+Conversation names are sanitized and suffixed with a local timestamp in `dd-MM-yyyy_HH:mm` format. The normal UI chunk-duration default is **30 seconds**; invalid integer input falls back to 10 seconds. Use a positive duration.
 
-## Runtime Permissions
+## Default settings
 
-The app requests microphone permission at startup. The manifest also declares:
+| Setting | Default |
+| --- | --- |
+| Server | `https://eloquence.lt.bsc.es` |
+| LLM | `Gemma 4 31B` |
+| Query transcriber | `Whisper` |
+| Language | `es` (UI options: `en`, `es`, `it`) |
+| Query silence | `2.0` seconds |
+| Retrieved documents (`docs_k`) | `10` |
+| Temperature / top-p | `0.7` / `0.9` |
+| Maximum tokens | `1000` |
+| Conversation audio chunks | `30` seconds |
+| Text chunk size | `500` |
+| Embeddings | `sentence-transformers/all-MiniLM-L6-v2` |
+| Splitting strategy / percentile | `recursive` / `0.9` |
 
-- `RECORD_AUDIO`
-- `FOREGROUND_SERVICE`
-- `INTERNET`
-- `POST_NOTIFICATIONS`
-- `WRITE_EXTERNAL_STORAGE`
+Settings and dialogue history are held in memory; they are not persisted across process restarts. Long conversation chunks always use WhisperX, independently of the short-query transcriber selection.
 
-On newer Android versions, notification permission may also need to be granted so the foreground service notification is visible.
+## Recording and data handling
 
-## App Workflow
+Audio is captured as 16 kHz mono PCM and encoded as 16-bit WAV. Short queries are assembled in memory and uploaded. Long recordings are saved temporarily in the app cache and processed one chunk at a time.
 
-1. Start the app.
-2. Grant microphone permission.
-3. The foreground `AudioService` starts and loads the local wake-word model.
-4. Use **Configurations** to set model, RAG, language, and vector-store parameters.
-5. Use **Record Conversation** to create or append a named conversation context.
-6. Use **Change Conversation** to select a vector-store index for RAG answers.
-7. Say the wake word to trigger a short query. The app records until silence, sends the audio to the backend, and displays the generated answer.
+The first successfully ingested chunk of each recording session uses `append=false`; later successful chunks use `append=true`. Do not assume an existing index will be preserved if a new session reuses its name. Silent chunks do not advance the ingestion counter. Failed chunks receive up to three retries after the initial attempt, with nominal delays of one, two, and three seconds; after exhaustion they are discarded and processing continues.
 
-## Conversation Recording
+Audio files are deleted after successful ingestion, no-speech responses, or exhausted retries. Stopping capture does not mean all uploads have completed. The upload queue is in memory and does not survive process death. Remote retention/deletion is controlled by the backend, not guaranteed by this client. Debug logs include transcriptions, request details, and responses.
 
-When a conversation recording starts, the app asks for:
+## Permissions and troubleshooting
 
-- conversation name, used as the vector-store `index_name`;
-- chunk duration in seconds, defaulting to `10`.
+The manifest declares microphone, internet, foreground-service, notification, legacy external-storage, and microphone/data-sync foreground-service permissions. The startup runtime prompt requests microphone access only. Notification permission is declared but has no dedicated runtime request flow in this snapshot.
 
-Each chunk is written temporarily as a WAV file in the app cache directory, uploaded to the backend, and deleted after ingestion. The first chunk creates or replaces the index, and later chunks append to it.
+- **Wake word unavailable:** restore `sgru-1.0.31.ptl`, check microphone permission, and inspect Logcat for model-loading errors.
+- **VAD initialization fails:** verify `silero_vad.onnx` exists and the ONNX runtime loads on the device.
+- **Network requests fail:** confirm device access to the selected server and the backend's expected model/task names. Local development uses port 8082.
+- **No stored conversations:** check `/list_vs` and retriever selector `public`; allow queued ingestion to finish.
+- **Audio is silent or capture fails:** test on a physical device and check competing microphone users, including the app's wake-word/query/conversation capture paths.
+- **Service remains active after closing the screen:** closing the activity does not explicitly stop the started foreground service.
 
-## Default In-App Configuration
-
-Current defaults in `MainViewModel.kt` and `EloquenceAPI.kt` include:
-
-- LLM name: `Gemma 4 (TID)`
-- language: `es`
-- `docs_k`: `5`
-- temperature: `0.7`
-- `top_p`: `0.9`
-- max tokens: `1000` in the UI, `500` in `EloquenceAPI`
-- embedding model: `sentence-transformers/all-MiniLM-L6-v2`
-- chunk size: `500`
-- splitting strategy: `recursive`
-- percentile: `0.9`
-
-## Troubleshooting
-
-- If wake-word detection does not start, verify that `app/src/main/assets/sgru.ptl` is present and that microphone permission is granted.
-- If backend requests fail, confirm the device can reach `192.168.24.120` on ports `8082` and `7997`, or update `BASE_IP`.
-- If recording cannot start, another app or service may already be using the microphone.
-- If vector-store conversations are missing, check `/list_vs` on the backend and confirm the retriever address is reachable.
-- For Android 13 and newer, grant notification permission if the foreground service notification is blocked.
-
-## Notes
-
-- The app package is `com.example.wuw_service_app`.
-- The displayed app name is `wuw-service-app`.
+Before release, test permission denial, repeated start/stop, leaving the activity, backend failure/recovery, and both query modes on a physical device. This repository is a research prototype; these instructions do not constitute a completed device validation.
