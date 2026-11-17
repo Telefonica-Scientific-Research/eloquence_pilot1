@@ -15,3 +15,8 @@
 local.properties
 
 .kotlin/
+
+# Model weights and other runtime model assets are not distributed in this
+# source repository. See MODEL_ASSETS.md.
+/app/src/main/assets/*.ptl
+/app/src/main/assets/*.onnx

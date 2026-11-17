@@ -51,16 +51,13 @@ These values describe the source configuration, not a verified compatibility mat
 
 ## Required model assets
 
-The active service loads these exact filenames:
+This source repository does not include model weights or other runtime model
+assets. The app expects models under `app/src/main/assets/` when the associated
+features are used. Obtain and use them only under their respective terms.
 
-```text
-app/src/main/assets/sgru-1.0.31.ptl
-app/src/main/assets/silero_vad.onnx
-```
-
-The supplied development snapshot also contains `sgru.ptl`, but the current service loads `sgru-1.0.31.ptl` instead.
-
-The wake-word weights are proprietary to Telefónica according to the previous project documentation. Obtain them through the appropriate internal channel. The source-only distribution excludes both `.ptl` files; restore the active model locally before running the app. The `.gitignore` prevents their accidental addition. Check redistribution terms for other model assets before making a public release.
+[`MODEL_ASSETS.md`](MODEL_ASSETS.md) identifies the expected filenames, the
+official Silero VAD source and checksum, and the status of the proprietary
+Telefónica wake-word weights.
 
 ## Backend configuration
 
@@ -141,7 +138,7 @@ Audio files are deleted after successful ingestion, no-speech responses, or exha
 
 The manifest declares microphone, internet, foreground-service, notification, legacy external-storage, and microphone/data-sync foreground-service permissions. The startup runtime prompt requests microphone access only. Notification permission is declared but has no dedicated runtime request flow in this snapshot.
 
-- **Wake word unavailable:** restore `sgru-1.0.31.ptl`, check microphone permission, and inspect Logcat for model-loading errors.
+- **Wake word unavailable:** obtain `sgru-1.0.31.ptl` through an authorized internal channel, place it in the assets directory, check microphone permission, and inspect Logcat for model-loading errors.
 - **VAD initialization fails:** verify `silero_vad.onnx` exists and the ONNX runtime loads on the device.
 - **Network requests fail:** confirm device access to the selected server and the backend's expected model/task names. Local development uses port 8082.
 - **No stored conversations:** check `/list_vs` and retriever selector `public`; allow queued ingestion to finish.
@@ -149,3 +146,9 @@ The manifest declares microphone, internet, foreground-service, notification, le
 - **Service remains active after closing the screen:** closing the activity does not explicitly stop the started foreground service.
 
 Before release, test permission denial, repeated start/stop, leaving the activity, backend failure/recovery, and both query modes on a physical device. This repository is a research prototype; these instructions do not constitute a completed device validation.
+
+## License
+
+The source code is licensed under the [Apache License 2.0](LICENSE). See
+[NOTICE](NOTICE) for attribution notices and [MODEL_ASSETS.md](MODEL_ASSETS.md)
+for runtime assets that are not distributed with this repository.
