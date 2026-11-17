@@ -37,7 +37,7 @@ import java.util.Locale
 object EloquenceAPI {
     private const val TAG = "EloquenceAPI"
 
-    var currentBaseIP: String = "https://eloquence.lt.bsc.es" // "192.168.24.120"// "https://eloquence.lt.bsc.es" //"192.168.24.120" // Server Addresses
+    var currentBaseIP: String = "https://eloquence.lt.bsc.es"
 
     private val URL_QUERY: String
         get() = if (currentBaseIP.startsWith("http")) "$currentBaseIP/query" else "http://$currentBaseIP:8082/query"
@@ -47,11 +47,7 @@ object EloquenceAPI {
         get() = if (currentBaseIP.startsWith("http")) "$currentBaseIP/delete_vs" else "http://$currentBaseIP:8082/delete_vs"
     private val URL_LIST_VS: String
         get() = if (currentBaseIP.startsWith("http")) "$currentBaseIP/list_vs" else "http://$currentBaseIP:8082/list_vs"
-    // private const val URL_QUERY = "$BASE_IP/query" // "http://$BASE_IP:8082/query" // Transcription & RAG queries
-    // private const val URL_INGEST = "$BASE_IP/ingest" // "http://$BASE_IP:8082/ingest"
-    // private const val URL_DELETE_VS = "$BASE_IP/delete_vs" // "http://$BASE_IP:8082/delete_vs"
-    //  private const val URL_LIST_VS = "$BASE_IP/list_vs" // "http://$BASE_IP:8082/list_vs"
-    const val RETRIEVER_ADDRESS = "public" // Knowledge base address http://$BASE_IP:7997
+    const val RETRIEVER_ADDRESS = "public"
 
     // Stores the recent dialogue exchange to provide context to the LLM
     private val conversationHistory = mutableListOf<JSONArray>()

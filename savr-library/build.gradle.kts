@@ -56,8 +56,6 @@ dependencies {
     // Kotlin Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
-    // Voice Activity Detection (Silero)
-    // implementation("com.github.gkonovalov.android-vad:silero:2.0.6")
     implementation("com.github.gkonovalov:android-vad:2.0.6")
 
 

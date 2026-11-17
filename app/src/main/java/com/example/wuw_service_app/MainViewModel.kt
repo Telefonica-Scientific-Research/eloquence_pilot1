@@ -180,8 +180,6 @@ class MainViewModel : ViewModel() {
         _audioLevel.value = cleanLevel
     }
 
-// In MainViewModel.kt
-
     fun actualStartRecording(context: Context, indexName: String, durationSeconds: Int) {
         // 1. Hide the dialog immediately
         showNamingDialog.value = false
